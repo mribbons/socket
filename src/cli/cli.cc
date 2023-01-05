@@ -955,6 +955,9 @@ int main (const int argc, const char* argv[]) {
     }
 
     targetPlatform = targetPlatform.size() > 0 ? targetPlatform : platform.os;
+
+    auto targetPlatformOptionPrefix = (targetPlatform == "win32" ? "win" : targetPlatform);
+
     Paths paths = getPaths(targetPlatform);
     AssetCache *ac = new AssetCache(
       getEnv("SSC_HASH_COMMAND"), 
@@ -993,8 +996,9 @@ int main (const int argc, const char* argv[]) {
 
     
     auto removePath = paths.platformSpecificOutputPath;
-      if (settings[targetPlatform + "_build_remove_path"].size() > 0)
-        removePath = targetPath / settings[targetPlatform + "_build_remove_path"];
+    log("target platform: " + targetPlatformOptionPrefix);
+    if (settings[targetPlatformOptionPrefix + "_build_remove_path"].size() > 0)
+      removePath = targetPath / replace(settings[targetPlatformOptionPrefix + "_build_remove_path"], "\\{\\{pathPackage\\}\\}", paths.pathPackage.string());
 
     if (flagRunUserBuildOnly == false && fs::exists(paths.platformSpecificOutputPath)) {
       try {
@@ -1733,8 +1737,92 @@ int main (const int argc, const char* argv[]) {
     // ---
     //
     if (platform.win && !flagBuildForAndroid && !flagBuildForIOS) {
-      log("preparing build for win");
+      log("preparing .o build for win");
       auto prefix = prefixFile();
+
+      flags = " -std=c++2a -D_MT -D_DLL -DWIN32 -DWIN32_LEAN_AND_MEAN"
+        " -I\"" + fs::path(paths.platformSpecificOutputPath / "include").string() + "\""
+        " -I\"" + prefix + "\""
+        " -I\"" + prefix + "\\include\""
+        " -I\"" + prefix + "\\src\""
+      ;     
+    
+      std::map<String, std::vector<fs::path>> cxx_files;
+      std::map<String, fs::path> cxx_outputs;
+
+      cxx_files["core"].push_back(prefixFile("src\\init.cc"));
+      cxx_files["desktop"].push_back(prefixFile("src\\app\\app.cc"));
+      cxx_files["core"].push_back(prefixFile("src\\core\\bluetooth.cc"));
+      cxx_files["core"].push_back(prefixFile("src\\core\\core.cc"));
+      cxx_files["core"].push_back(prefixFile("src\\core\\fs.cc"));
+      cxx_files["core"].push_back(prefixFile("src\\core\\javascript.cc"));
+      cxx_files["core"].push_back(prefixFile("src\\core\\json.cc"));
+      cxx_files["core"].push_back(prefixFile("src\\core\\peer.cc"));
+      cxx_files["core"].push_back(prefixFile("src\\core\\udp.cc"));
+      cxx_files["core"].push_back(prefixFile("src\\desktop\\main.cc"));      
+      cxx_files["ipc"].push_back(prefixFile("src\\ipc\\bridge.cc"));
+      cxx_files["ipc"].push_back(prefixFile("src\\ipc\\ipc.cc"));
+      cxx_files["desktop"].push_back(prefixFile("src\\window\\win.cc"));
+      cxx_files["desktop"].push_back(prefixFile("src\\process\\win.cc"));
+
+      std::vector<std::thread*> win_o_threads;
+
+      for (auto &obj_ : cxx_files) {
+        fs::create_directories(paths.platformSpecificOutputPath / "obj" / obj_.first);
+        
+        for (auto input_ : obj_.second) {
+          win_o_threads.push_back(new std::thread([&](String group, fs::path input) {
+            fs::path obj_path = paths.platformSpecificOutputPath / "obj" / group / (input.stem().string() + ".o");
+
+            // avoid duplicate name win.o
+            if (input.parent_path().stem().string() == "process" && obj_path.stem().string() == "win")
+              obj_path = paths.platformSpecificOutputPath / "obj" / group / (input.stem().string() + "proc_win.o");
+
+            files += " \"" + obj_path.string() + "\"";
+
+            StringStream compileCommand;
+
+            auto extraFlags = flagDebugMode
+              ? settings.count("debug_flags") ? settings["debug_flags"] : ""
+              : settings.count("flags") ? settings["flags"] : "";
+
+            compileCommand
+              << getEnv("CXX")  
+              << " " << flags
+              << " " << extraFlags
+              << " " << trim(input.string())
+              << " -c"
+              << " -o " << "\"" << obj_path.string() << "\""
+              << " -DIOS=" << (flagBuildForIOS ? 1 : 0)
+              << " -DANDROID=" << (flagBuildForAndroid ? 1 : 0)
+              << " -DDEBUG=" << (flagDebugMode ? 1 : 0)
+            ;
+
+            // TODO(trevnorris): Output build string on debug builds.
+            // log(compileCommand.str());
+            auto r = exec(compileCommand.str());
+            if (r.exitCode != 0) {
+              log(r.output);
+              exit(1);
+            }
+          }, obj_.first, input_));
+        }
+      }
+
+      int joined = 0;
+
+      for (auto t : win_o_threads) {
+        try {
+          if (t->joinable())
+          {
+            t->join();
+            joined++;
+          }
+        } catch (std::exception &e) {
+          log("Unable to join windows thread: " + String(e.what()));
+          throw;
+        }
+      }
 
       flags = " -std=c++2a"
         " -D_MT"
@@ -1749,21 +1837,20 @@ int main (const int argc, const char* argv[]) {
         " -I\"" + prefix + "\\src\""
         " -L\"" + prefix + "\\lib\""
       ;
-
-      files += "\"" + prefixFile("src\\init.cc\"");
-      files += "\"" + prefixFile("src\\app\\app.cc\"");
-      files += "\"" + prefixFile("src\\core\\bluetooth.cc\"");
-      files += "\"" + prefixFile("src\\core\\core.cc\"");
-      files += "\"" + prefixFile("src\\core\\fs.cc\"");
-      files += "\"" + prefixFile("src\\core\\javascript.cc\"");
-      files += "\"" + prefixFile("src\\core\\json.cc\"");
-      files += "\"" + prefixFile("src\\core\\peer.cc\"");
-      files += "\"" + prefixFile("src\\core\\udp.cc\"");
-      files += "\"" + prefixFile("src\\desktop\\main.cc\"");
-      files += "\"" + prefixFile("src\\ipc\\bridge.cc\"");
-      files += "\"" + prefixFile("src\\ipc\\ipc.cc\"");
-      files += "\"" + prefixFile("src\\window\\win.cc\"");
-      files += "\"" + prefixFile("src\\process\\win.cc\"");
+      // files += "\"" + prefixFile("src\\init.cc\"");
+      // files += "\"" + prefixFile("src\\app\\app.cc\"");
+      // files += "\"" + prefixFile("src\\core\\bluetooth.cc\"");
+      // files += "\"" + prefixFile("src\\core\\core.cc\"");
+      // files += "\"" + prefixFile("src\\core\\fs.cc\"");
+      // files += "\"" + prefixFile("src\\core\\javascript.cc\"");
+      // files += "\"" + prefixFile("src\\core\\json.cc\"");
+      // files += "\"" + prefixFile("src\\core\\peer.cc\"");
+      // files += "\"" + prefixFile("src\\core\\udp.cc\"");
+      // files += "\"" + prefixFile("src\\desktop\\main.cc\"");
+      // files += "\"" + prefixFile("src\\ipc\\bridge.cc\"");
+      // files += "\"" + prefixFile("src\\ipc\\ipc.cc\"");
+      // files += "\"" + prefixFile("src\\window\\win.cc\"");
+      // files += "\"" + prefixFile("src\\process\\win.cc\"");
 
       fs::create_directories(paths.pathPackage);
 

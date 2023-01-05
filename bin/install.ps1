@@ -27,6 +27,7 @@ Function Build {
   $VERSION_HASH = $(git rev-parse --short HEAD) 2>&1 | % ToString
   $VERSION = $(type VERSION.txt) 2>&1 | % ToString
   $BUILD_TIME = [int] (New-TimeSpan -Start (Get-Date "01/01/1970") -End (Get-Date)).TotalSeconds
+  $BUILD_START = (Get-Date)
 
   if (-not (Test-Path -Path "$WORKING_BUILD_PATH\libuv" -PathType Container)) {
     (New-Item -ItemType Directory -Force -Path "$WORKING_BUILD_PATH") > $null
@@ -55,14 +56,32 @@ Function Build {
   Copy-Item -Path "$WORKING_BUILD_PATH\libuv\include\*" -Destination "$WORKING_BUILD_PATH\include" -Recurse -Force -Container
 
   cd "$WORKING_PATH"
+  (New-Item -ItemType Directory -Force -Path "$WORKING_BUILD_PATH\obj") > $null
   (New-Item -ItemType Directory -Force -Path "$WORKING_BUILD_PATH\bin") > $null
   Write-Output "# compiling the build tool..."
-  # Write-Output "clang++ $SSC_BUILD_OPTIONS -Xlinker /NODEFAULTLIB:libcmt -I""$WORKING_BUILD_PATH\include"" -L""$WORKING_BUILD_PATH\lib"" src\process\win.cc src\cli\asset_cache.cc src\cli\cli.cc  -o $WORKING_BUILD_PATH\bin\ssc.exe -std=c++2a -DSSC_BUILD_TIME=""$($BUILD_TIME)"" -DSSC_VERSION_HASH=""$($VERSION_HASH)"" -DSSC_VERSION=""$($VERSION)"""
-  clang++ $SSC_BUILD_OPTIONS -Xlinker /NODEFAULTLIB:libcmt -I"$WORKING_BUILD_PATH\include" -L"$WORKING_BUILD_PATH\lib" src\process\win.cc src\cli\asset_cache.cc src\cli\cli.cc  -o $WORKING_BUILD_PATH\bin\ssc.exe -std=c++2a -DSSC_BUILD_TIME="$($BUILD_TIME)" -DSSC_VERSION_HASH="$($VERSION_HASH)" -DSSC_VERSION="$($VERSION)"
+  $jobs = @()
+  $jobs += Start-Job -ArgumentList $WORKING_BUILD_PATH,$SSC_BUILD_OPTIONS,$WORKING_PATH -ScriptBlock { 
+    param($WORKING_BUILD_PATH,$SSC_BUILD_OPTIONS,$WORKING_PATH)
+    Write-Output "clang++ -std=c++2a  -Wno-nonportable-include-path -I""$WORKING_BUILD_PATH\include"" $WORKING_PATH\src\process\win.cc $SSC_BUILD_OPTIONS ""$WORKING_BUILD_PATH\obj\win.o"""
+    clang++ -std=c++2a  -Wno-nonportable-include-path -I"$WORKING_BUILD_PATH\include" $WORKING_PATH\src\process\win.cc $SSC_BUILD_OPTIONS -c -o "$WORKING_BUILD_PATH\obj\win.o" } 
+  $jobs += Start-Job -ArgumentList $WORKING_BUILD_PATH,$SSC_BUILD_OPTIONS,$WORKING_PATH -ScriptBlock { 
+    param($WORKING_BUILD_PATH,$SSC_BUILD_OPTIONS,$WORKING_PATH)
+    clang++ -std=c++2a  -Wno-nonportable-include-path -I"$WORKING_BUILD_PATH\include" $WORKING_PATH\src\cli\asset_cache.cc $SSC_BUILD_OPTIONS -c -o "$WORKING_BUILD_PATH\obj\asset_cache.o" }
+  $jobs += Start-Job -ArgumentList $WORKING_BUILD_PATH,$SSC_BUILD_OPTIONS,$WORKING_PATH -ScriptBlock { 
+    param($WORKING_BUILD_PATH,$SSC_BUILD_OPTIONS,$WORKING_PATH)
+    clang++ -std=c++2a  -Wno-nonportable-include-path -I"$WORKING_BUILD_PATH\include" $WORKING_PATH\src\cli\cli.cc $SSC_BUILD_OPTIONS -c -o "$WORKING_BUILD_PATH\obj\cli.o" }
+  $jobs | Wait-Job | Receive-Job
+  clang++ $SSC_BUILD_OPTIONS -Xlinker /NODEFAULTLIB:libcmt -I"$WORKING_BUILD_PATH\include" -L"$WORKING_BUILD_PATH\lib" "$WORKING_BUILD_PATH\obj\win.o" "$WORKING_BUILD_PATH\obj\cli.o" "$WORKING_BUILD_PATH\obj\asset_cache.o" -o $WORKING_BUILD_PATH\bin\ssc.exe -std=c++2a -DSSC_BUILD_TIME="$($BUILD_TIME)" -DSSC_VERSION_HASH="$($VERSION_HASH)" -DSSC_VERSION="$($VERSION)"
 
   if ($? -ne 1) {
     Write-Output "not ok - the build tool failed to compile. Here's what you can do..."
     Exit 1
+  }
+
+  if ($debug) { 
+    $BUILD_SECONDS = [float] (New-TimeSpan -Start ($BUILD_START) -End (Get-Date)).TotalSeconds
+    $BUILD_START = (Get-Date)
+    Write-Output "Build time: $BUILD_SECONDS" 
   }
 
   if ($env:Path -notlike "*$BIN_PATH*") {
