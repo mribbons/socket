@@ -79,9 +79,45 @@ function initializeXHRIntercept () {
           typeof body !== 'undefined' &&
           typeof seq !== 'undefined'
         ) {
+          if (typeof body === 'string') {
+            body = encoder.encode(body)
+          }
+
           if (/android/i.test(window.__args.os)) {
             await postMessage(`ipc://buffer.map?seq=${seq}`, body)
             body = null
+          }
+
+          if (/win32/i.test(window.__args.os) && body) {
+            // 1. send `ipc://buffer.create`
+            //   - The native side should create a shared buffer for `index` and `seq` pair of `size` bytes
+            //   - `index` is the target window
+            //   - `seq` is the sequence is used to know how to return the value to the sender
+            // 2. wait for 'sharedbufferreceived' event
+            //   - The webview will wait for this event on `window`
+            //   - The event should include "additional data" that is JSON and includes the `index` and `seq` values
+            // 3. filter on `index` and `seq` for this request
+            //   - The webview will filter on the `index` and `seq` values before calling `getBuffer()`
+            // 4. write `body` to _shared_ `buffer`
+            //   - The webview should write all bytes to the buffer
+            // 5. resolve promise
+            //   - After promise resolution, the XHR request will continue
+            //   - The native side should look up the shared buffer for the `index` and `seq` values and use it
+            //     as the bytes for the request when routing the IPC request through the bridge router
+            //   - The native side should release the shared buffer
+            // size here assumes latin1 encoding.
+            await postMessage(`ipc://buffer.create?index=${index}&seq=${seq}&size=${body.length}`)
+            await new Promise((resolve) => {
+              window.chrome.webview.addEventListener('sharedbufferreceived', function onSharedBufferReceived (event) {
+                const { additionalData } = event
+                if (additionalData.index === index && additionalData.seq === seq) {
+                  const buffer = new Uint8Array(event.getBuffer())
+                  buffer.set(body)
+                  window.chrome.webview.removeEventListener('sharedbufferreceived', onSharedBufferReceived)
+                  resolve()
+                }
+              })
+            })
           }
 
           if (/linux/i.test(window.__args.os)) {
@@ -219,7 +255,7 @@ function getRequestResponse (request) {
     }
 
     const { status, responseURL, statusText } = request
-    const message = Message.from(responseURL?.replace('http:', Message.PROTOCOL))
+    const message = Message.from(responseURL)
     const source = message.command
 
     if (status >= 100 && status < 400) {
@@ -305,14 +341,6 @@ function maybeMakeError (error, caller) {
   }
 
   return err
-}
-
-function createUri (protocol, command) {
-  if (typeof window === 'object' && window?.__args.os === 'win32') {
-    protocol = 'http:'
-  }
-
-  return `${protocol}//${command}`
 }
 
 /**
@@ -780,6 +808,7 @@ export class Result {
 /**
  * Waits for the native IPC layer to be ready and exposed on the
  * global window object.
+ * @ignore
  */
 export async function ready () {
   return await new Promise((resolve, reject) => {
@@ -805,6 +834,7 @@ export async function ready () {
  * @param {string} command
  * @param {(object|string)=} params
  * @return {Result}
+ * @ignore
  */
 export function sendSync (command, params) {
   if (typeof window === 'undefined') {
@@ -815,11 +845,10 @@ export function sendSync (command, params) {
     return {}
   }
 
-  const protocol = Message.PROTOCOL
   const request = new window.XMLHttpRequest()
   const index = window.__args.index ?? 0
   const seq = nextSeq++
-  const uri = createUri(protocol, command)
+  const uri = `ipc://${command}`
 
   params = new URLSearchParams(params)
   params.set('index', index)
@@ -832,7 +861,6 @@ export function sendSync (command, params) {
   }
 
   request.open('GET', uri + query, false)
-  request.setRequestHeader('x-ipc-request', command)
   request.send()
 
   const result = Result.from(getRequestResponse(request), null, command)
@@ -967,12 +995,11 @@ export async function write (command, params, buffer, options) {
 
   await ready()
 
-  const protocol = Message.PROTOCOL
-  const request = new window.XMLHttpRequest()
   const signal = options?.signal
-  const index = window.__args.index ?? 0
+  const request = new window.XMLHttpRequest()
+  const index = window?.__args?.index ?? 0
   const seq = nextSeq++
-  const uri = createUri(protocol, command)
+  const uri = `ipc://${command}`
 
   let resolved = false
   let aborted = false
@@ -998,7 +1025,6 @@ export async function write (command, params, buffer, options) {
   const query = `?${params}`
 
   request.open('POST', uri + query, true)
-  request.setRequestHeader('x-ipc-request', command)
   await request.send(buffer || null)
 
   if (debug.enabled) {
@@ -1060,12 +1086,11 @@ export async function write (command, params, buffer, options) {
 export async function request (command, params, options) {
   await ready()
 
-  const protocol = Message.PROTOCOL
   const request = new window.XMLHttpRequest()
   const signal = options?.signal
-  const index = window.__args.index ?? 0
+  const index = window?.__args?.index ?? 0
   const seq = nextSeq++
-  const uri = createUri(protocol, command)
+  const uri = `ipc://${command}`
 
   let resolved = false
   let aborted = false
@@ -1092,7 +1117,6 @@ export async function request (command, params, options) {
 
   request.responseType = options?.responseType ?? ''
   request.open('GET', uri + query)
-  request.setRequestHeader('x-ipc-request', command)
   request.send(null)
 
   if (debug.enabled) {

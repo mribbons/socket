@@ -13,10 +13,10 @@ if (typeof globalThis?.addEventListener === 'function') {
   globalThis.addEventListener('unhandledrejection', onerror)
 }
 
-GLOBAL_TEST_RUNNER.onFinish(() => {
+GLOBAL_TEST_RUNNER.onFinish(({ fail }) => {
   setTimeout(() => {
-    process.exit(0)
-  }, 10)
+    process.exit(fail > 0 ? 1 : 0)
+  }, 1024) // give app time to print TAP output
 })
 
 function onerror (err) {
