@@ -1,3 +1,4 @@
+import { primordials } from 'socket:ipc'
 import { test } from 'socket:test'
 import * as os from 'socket:os'
 
@@ -10,11 +11,20 @@ test('os.arch()', (t) => {
 })
 
 test('os.platform()', (t) => {
-  t.ok(platforms.includes(os.platform()), 'os.platform()')
+  t.ok(platforms.includes(os.platform()), 'os.platform() value is valid')
+  t.equal(os.platform(), primordials.platform, 'os.platform() equals primordials.platform')
 })
 
 test('os.type()', (t) => {
-  t.ok(types.includes(os.type()), 'os.type()')
+  t.ok(types.includes(os.type()), 'os.type() value is valid')
+})
+
+test('os.isWindows()', (t) => {
+  t.equal(os.isWindows(), primordials.platform === 'win32', 'os.isWindows() value is valid')
+})
+
+test('os.tmpdir()', (t) => {
+  t.equal(typeof os.tmpdir(), 'string', 'os.type() value is a string')
 })
 
 test('os.networkInterfaces()', (t) => {

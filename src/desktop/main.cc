@@ -98,7 +98,6 @@ MAIN {
 
   bool wantsVersion = false;
   bool wantsHelp = false;
-  bool fromSSC = false; // launched from the `ssc` cli
 
   // TODO right now we forward a json parsable string as the args but this
   // isn't the most robust way of doing this. possible a URI-encoded query
@@ -140,10 +139,8 @@ MAIN {
       isHeadless = true;
     }
 
-    if (s.find("--from-ssc") == 0) {
-      fromSSC = true;
-      app.fromSSC = true;
-    }
+    // launched from the `ssc` cli
+    app.fromSSC = s.find("--from-ssc") == 0 ? true : false;
 
     if (s.find("--test") == 0) {
       suffix = "-test";
@@ -498,17 +495,6 @@ MAIN {
       return;
     }
 
-    if (message.name == "window.setTitle") {
-      const auto currentIndex = message.index;
-      const auto index = message.get("window").size() > 0 ? std::stoi(message.get("window")) : currentIndex;
-      const auto window = windowManager.getWindow(index);
-      window->setTitle(
-        message.seq,
-        decodeURIComponent(value)
-      );
-      return;
-    }
-
     if (message.name == "log" || message.name == "stdout") {
       stdWrite(decodeURIComponent(value), false);
       return;
@@ -529,6 +515,24 @@ MAIN {
       return;
     }
 
+    if (message.name == "inspect") {
+      window->showInspector();
+      return;
+    }
+
+    if (message.name == "getScreenSize") {
+      const auto seq = message.get("seq");
+      const auto index = message.index;
+      const auto window = windowManager.getWindow(index);
+      const auto screenSize = window->getScreenSize();
+      const JSON::Object json = JSON::Object::Entries {
+        { "width", screenSize.width },
+        { "height", screenSize.height }
+      };
+      window->resolvePromise(seq, OK_STATE, json.str());
+      return;
+    }
+
     if (message.name == "getWindows") {
       const auto index = message.index;
       const auto props = WindowPropertiesFlags {
@@ -539,6 +543,17 @@ MAIN {
       const auto window = windowManager.getWindow(index);
       const auto result = windowManager.json(props).str();
       window->resolvePromise(message.get("seq"), OK_STATE, encodeURIComponent(result));
+      return;
+    }
+
+    if (message.name == "window.setTitle") {
+      const auto currentIndex = message.index;
+      const auto index = message.get("window").size() > 0 ? std::stoi(message.get("window")) : currentIndex;
+      const auto window = windowManager.getWindow(index);
+      window->setTitle(
+        message.seq,
+        decodeURIComponent(value)
+      );
       return;
     }
 
@@ -695,11 +710,6 @@ MAIN {
       if (resolveWindow) {
         resolveWindow->resolvePromise(message.get("seq"), OK_STATE, std::to_string(index));
       }
-      return;
-    }
-
-    if (message.name == "inspect") {
-      window->showInspector();
       return;
     }
 

@@ -5,8 +5,18 @@
 using namespace SSC;
 using namespace SSC::IPC;
 
-#if defined(__APPLE__)
+// create a proxy module so imports of the module of concern are imported
+// exactly once at the canonical URL (file:///...) in contrast to module
+// URLs (socket:...)
 
+static constexpr auto moduleTemplate =
+R"S(
+import module from '{{url}}'
+export * from '{{url}}'
+export default module
+)S";
+
+#if defined(__APPLE__)
 static dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(
   DISPATCH_QUEUE_CONCURRENT,
   QOS_CLASS_USER_INITIATED,
@@ -56,14 +66,24 @@ static String getcwd () {
   cwd = fs::path(canonical).parent_path().string();
 #elif defined(__APPLE__)
   auto fileManager = [NSFileManager defaultManager];
-  auto currentDirectoryPath = [fileManager currentDirectoryPath];
-  auto currentDirectory = [NSHomeDirectory() stringByAppendingPathComponent: currentDirectoryPath];
+  auto currentDirectory = [fileManager currentDirectoryPath];
   cwd = String([currentDirectory UTF8String]);
 #elif defined(_WIN32)
   wchar_t filename[MAX_PATH];
   GetModuleFileNameW(NULL, filename, MAX_PATH);
   auto path = fs::path { filename }.remove_filename();
-    cwd = path.string();
+  cwd = path.string();
+  size_t last_pos = 0;
+  while ((last_pos = cwd.find('\\', last_pos)) != std::string::npos) {
+    cwd.replace(last_pos, 1, "\\\\");
+    last_pos += 2;
+  }
+#endif
+
+#ifndef _WIN32
+    std::replace(cwd.begin(), cwd.end(), '\\', '/');
+#else
+
 #endif
 
   return cwd;
@@ -732,33 +752,6 @@ void initFunctionsTable (Router *router) {
   });
 
   /**
-   * Returns the platform OS.
-   */
-  router->map("os.platform", [](auto message, auto router, auto reply) {
-    auto result = Result { message.seq, message };
-    result.data = platform.os;
-    reply(result);
-  });
-
-  /**
-   * Returns the platform type.
-   */
-  router->map("os.type", [](auto message, auto router, auto reply) {
-    auto result = Result { message.seq, message };
-    result.data = platform.os;
-    reply(result);
-  });
-
-  /**
-   * Returns the platform architecture.
-   */
-  router->map("os.arch", [](auto message, auto router, auto reply) {
-    auto result = Result { message.seq, message };
-    result.data = platform.arch;
-    reply(result);
-  });
-
-  /**
    * Returns a mapping of network interfaces.
    */
   router->map("os.networkInterfaces", [=](auto message, auto router, auto reply) {
@@ -835,26 +828,27 @@ void initFunctionsTable (Router *router) {
   });
 
   /**
-   * Returns computed current working directory path.
+   * Return Socket Runtime primordials.
    */
-  router->map("process.cwd", [=](auto message, auto router, auto reply) {
-    JSON::Object json;
-    auto cwd = getcwd();
-
-    if (cwd.size() == 0) {
-      json = JSON::Object::Entries {
-        {"source", "process.cwd"},
-        {"err", JSON::Object::Entries {
-          {"message", "Could not determine current working directory"}
-        }}
-      };
-    } else {
-      json = JSON::Object::Entries {
-        {"source", "process.cwd"},
-        {"data", cwd}
-      };
-    }
-
+  router->map("platform.primordials", [=](auto message, auto router, auto reply) {
+    std::regex platform_pattern("^mac$", std::regex_constants::icase);
+    auto platformRes = std::regex_replace(platform.os, platform_pattern, "darwin");
+    auto arch = std::regex_replace(platform.arch, std::regex("x86_64"), "x64");
+    arch = std::regex_replace(arch, std::regex("x86"), "ia32");
+    arch = std::regex_replace(arch, std::regex("arm(?!64).*"), "arm");
+    auto json = JSON::Object::Entries {
+      {"source", "platform.primordials"},
+      {"data", JSON::Object::Entries {
+        {"arch", arch},
+        {"cwd", getcwd()},
+        {"platform", platformRes},
+        {"version", JSON::Object::Entries {
+          {"full", SSC::VERSION_FULL_STRING},
+          {"short", SSC::VERSION_STRING},
+          {"hash", SSC::VERSION_HASH_STRING}}
+        }
+      }}
+    };
     reply(Result { message.seq, message, json });
   });
 
@@ -1217,16 +1211,6 @@ static void registerSchemeHandler (Router *router) {
     }
 
     uri = "file://" + path.string();
-    // create a proxy module so imports of the module of concern are imported
-    // exactly once at the canonical URL (file:///...) in contrast to module
-    // URLs (socket:...)
-    auto moduleTemplate =
-R"S(
-export * from '{{url}}'
-const exports = await import('{{url}}');
-export default exports.default ?? undefined
-)S";
-
     auto moduleSource = trim(tmpl(
       moduleTemplate,
       Map { {"url", String(uri)} }
@@ -1303,16 +1287,6 @@ export default exports.default ?? undefined
     ];
 
     auto data = [NSData dataWithContentsOfURL: components.URL];
-
-    // create a proxy module so imports of the module of concern are imported
-    // exactly once at the canonical URL (file:///...) in contrast to module
-    // URLs (socket:...)
-    auto moduleTemplate =
-R"S(
-export * from '{{url}}'
-const exports = await import('{{url}}');
-export default exports.default ?? undefined
-)S";
 
     auto moduleSource = trim(tmpl(
       moduleTemplate,

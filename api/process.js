@@ -1,23 +1,27 @@
 /**
  * @module Process
  */
+import { primordials, send } from './ipc.js'
 import { EventEmitter } from './events.js'
-import { send } from './ipc.js'
 
 let didEmitExitEvent = false
+
+class Process extends EventEmitter {
+  arch = primordials.arch
+  argv = globalThis.__args?.argv ?? []
+  argv0 = globalThis.__args?.argv?.[0] ?? null
+  cwd = () => primordials.cwd
+  env = globalThis.__args?.env ?? {}
+  exit = exit
+  homedir = homedir
+  platform = primordials.platform
+  version = primordials.version
+}
 
 const isNode = Boolean(globalThis.process?.versions?.node)
 const process = isNode
   ? globalThis.process
-  : Object.create(globalThis.__args, Object.getOwnPropertyDescriptors({
-    ...EventEmitter.prototype,
-    homedir,
-    argv0: globalThis.__args?.argv?.[0] ?? null,
-    exit,
-    env: {},
-    platform: globalThis?.__args?.os ?? '',
-    ...globalThis.__args
-  }))
+  : new Process()
 
 if (!isNode) {
   EventEmitter.call(process)
@@ -29,7 +33,7 @@ export default process
  * @returns {string} The home directory of the current user.
  */
 export function homedir () {
-  return process.env.HOME ?? ''
+  return window.__args.env.HOME ?? ''
 }
 
 /**
@@ -39,6 +43,6 @@ export function exit (code) {
   if (!didEmitExitEvent) {
     didEmitExitEvent = true
     queueMicrotask(() => process.emit('exit', code))
-    send('exit', { value: code || 0 })
+    send('exit', { value: code ?? 0 })
   }
 }

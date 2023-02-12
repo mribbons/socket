@@ -1,5 +1,6 @@
 import { test } from 'socket:test'
 import process from 'socket:process'
+import { primordials } from 'socket:ipc'
 import path from 'path-browserify'
 
 test('process', (t) => {
@@ -15,8 +16,9 @@ test('process.exit()', (t) => {
 })
 
 test('process.cwd', async (t) => {
-  t.ok(typeof process.cwd() === 'string', 'process.cwd() returns a string')
-  if (process.platform === 'mac') {
+  t.equal(typeof process.cwd(), 'string', 'process.cwd() returns a string')
+  t.equal(process.cwd(), primordials.cwd, 'process.cwd() equals primordials.cwd')
+  if (process.platform === 'darwin' || process.platform === 'ios') {
     t.equal(process.cwd(), path.resolve(process.argv0, '../../Resources'), 'process.cwd() returns a correct value')
   } else if (process.platform === 'linux') {
     t.equal(process.cwd(), path.resolve(process.argv0, '../../socket-runtime-javascript-tests'), 'process.cwd() returns a correct value')
@@ -32,15 +34,14 @@ test('process.cwd', async (t) => {
 })
 
 test('process.arch', (t) => {
-  t.ok(['x86_64', 'arm64'].includes(process.arch), 'process.arch is correct')
-  t.equal(process.arch, window.__args.arch, 'process.arch equals window.__args.arch')
+  t.ok(['x64', 'arm64'].includes(process.arch), 'process.arch is correct')
+  t.equal(process.arch, primordials.arch, 'process.arch equals primordials.arch')
 })
 
 test('process.platform', (t) => {
   t.ok(typeof process.platform === 'string', 'process.platform returns an string')
-  t.ok(['mac', 'linux', 'android', 'ios', 'win32'].includes(process.platform), 'process.platform is correct')
-  t.equal(process.platform, window.__args.os, 'process.platform equals window.__args.platform')
-  t.equal(process.platform, process.os, 'process.platform returns the same value as process.os')
+  t.ok(['darwin', 'freebsd', 'linux', 'openbsd', 'sunos', 'win32', 'android', 'ios'].includes(process.platform), 'process.platform is correct')
+  t.equal(process.platform, primordials.platform, 'process.platform equals primordials.platform')
 })
 
 test('process.env', (t) => {

@@ -7,9 +7,16 @@
 
 import { Buffer } from './buffer.js'
 import console from './console.js'
-import sodium from './crypto/sodium.js'
 
 import * as exports from './crypto.js'
+
+const sodium = {
+  ready: new Promise((resolve) => {
+    import('./crypto/sodium.js').then((module) => {
+      Object.assign(sodium, module.default)
+    })
+  })
+}
 
 /**
  * libsodium API
@@ -98,4 +105,5 @@ export function randomBytes (size) {
 export async function createDigest (algorithm, buf) {
   return Buffer.from(await webcrypto.subtle.digest(algorithm, buf))
 }
+
 export default exports

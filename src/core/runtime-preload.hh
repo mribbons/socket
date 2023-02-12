@@ -5,20 +5,11 @@
 
 namespace SSC {
   inline SSC::String createPreload (WindowOptions opts) {
-    SSC::String cleanCwd = SSC::String(opts.cwd);
-
-#ifndef _WIN32
-    std::replace(cleanCwd.begin(), cleanCwd.end(), '\\', '/');
-#else
+#ifdef _WIN32
     // Escape backslashes in paths.
     size_t last_pos = 0;
     while ((last_pos = opts.argv.find('\\', last_pos)) != std::string::npos) {
       opts.argv.replace(last_pos, 1, "\\\\");
-      last_pos += 2;
-    }
-    last_pos = 0;
-    while ((last_pos = cleanCwd.find('\\', last_pos)) != std::string::npos) {
-      cleanCwd.replace(last_pos, 1, "\\\\");
       last_pos += 2;
     }
 #endif
@@ -28,10 +19,6 @@ namespace SSC {
       "  window.__args = {}                                                  \n"
       "  const env = '" + opts.env + "';                                     \n"
       "  Object.defineProperties(window.__args, {                            \n"
-      "  arch: {                                                             \n"
-      "    value: '" + platform.arch + "',                                   \n"
-      "    enumerable: true                                                  \n"
-      "  },                                                                  \n"
       "  argv: {                                                             \n"
       "    value: [" + opts.argv + "],                                       \n"
       "    enumerable: true                                                  \n"
@@ -41,10 +28,6 @@ namespace SSC {
       "    enumerable: true,                                                 \n"
       "    writable: true,                                                   \n"
       "    configurable: true                                                \n"
-      "  },                                                                  \n"
-      "  cwd: {                                                              \n"
-      "    value: () => '" + cleanCwd + "',                                  \n"
-      "    enumerable: true                                                  \n"
       "  },                                                                  \n"
       "  debug: {                                                            \n"
       "    value: " + std::to_string(opts.debug) + ",                        \n"
@@ -56,34 +39,6 @@ namespace SSC {
       "  },                                                                  \n"
       "  index: {                                                            \n"
       "    value: Number('" + std::to_string(opts.index) + "'),              \n"
-      "    enumerable: true                                                  \n"
-      "  },                                                                  \n"
-      "  os: {                                                               \n"
-      "    value: '" + platform.os + "',                                     \n"
-      "    enumerable: true                                                  \n"
-      "  },                                                                  \n"
-      "  version: {                                                          \n"
-      "    value: 'v" + VERSION_STRING + "',                                 \n"
-      "    enumerable: true                                                  \n"
-      "  }                                                                   \n"
-      "})                                                                    \n"
-      "window.__ipc = {}                                                     \n"
-      "Object.defineProperties(window.__ipc, {                               \n"
-      "  postMessage: {                                                      \n"
-      "    value: (...args) => {                                             \n"
-      "      if (window?.webkit?.messageHandlers?.external?.postMessage) {   \n"
-      "        return webkit.messageHandlers.external.postMessage(...args)   \n"
-      "      }                                                               \n"
-      "      if (window?.chrome?.webview?.postMessage) {                     \n"
-      "        return chrome.webview.postMessage(...args)                    \n"
-      "      }                                                               \n"
-      "      if (window?.external?.postMessage) {                            \n"
-      "        return external.postMessage(...args)                          \n"
-      "      }                                                               \n"
-      "      throw new TypeError(                                            \n"
-      "        'Could not determine UserMessageHandler.postMessage in Window'\n"
-      "      )                                                               \n"
-      "    },                                                                \n"
       "    enumerable: true                                                  \n"
       "  }                                                                   \n"
       "})                                                                    \n"
@@ -108,16 +63,6 @@ namespace SSC {
           "});                                                               \n"
           ;
       }
-    }
-
-    if (platform.mac || platform.linux || platform.win) {
-      preload += "                                                           \n"
-        "if (window?.parent?.port > 0) {                                     \n"
-        "  window.addEventListener('menuItemSelected', e => {                \n"
-        "    window.location.reload();                                       \n"
-        "  });                                                               \n"
-        "}                                                                   \n"
-        ;
     }
 
     // fill in the config

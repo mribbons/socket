@@ -6,48 +6,16 @@
  */
 
 import { toProperCase } from './util.js'
-import process from './process.js'
-import ipc from './ipc.js'
+import ipc, { primordials } from './ipc.js'
 
 const UNKNOWN = 'unknown'
 
 const cache = {
-  arch: UNKNOWN,
-  type: UNKNOWN,
-  platform: UNKNOWN
+  type: UNKNOWN
 }
 
 export function arch () {
-  let value = UNKNOWN
-
-  if (cache.arch !== UNKNOWN) {
-    return cache.arch
-  }
-
-  if (typeof window !== 'object') {
-    if (typeof process?.arch === 'string') {
-      return process.arch
-    }
-  }
-
-  if (typeof window === 'object') {
-    value = (
-      process.arch ||
-      ipc.sendSync('os.arch')?.data ||
-      UNKNOWN
-    )
-  }
-
-  if (value === 'arm64') {
-    return value
-  }
-
-  cache.arch = value
-    .replace('x86_64', 'x64')
-    .replace('x86', 'ia32')
-    .replace(/arm.*/, 'arm')
-
-  return cache.arch
+  return primordials.arch
 }
 
 export function networkInterfaces () {
@@ -133,32 +101,7 @@ export function networkInterfaces () {
 }
 
 export function platform () {
-  let value = UNKNOWN
-
-  if (cache.platform !== UNKNOWN) {
-    return cache.platform
-  }
-
-  if (typeof window !== 'object') {
-    if (typeof process?.platform === 'string') {
-      return process.platform.toLowerCase()
-    }
-  }
-
-  if (typeof window === 'object') {
-    value = (
-      process.os ||
-      ipc.sendSync('os.platform')?.data ||
-      platform?.platform ||
-      UNKNOWN
-    )
-  }
-
-  cache.platform = value
-    .replace(/^mac/i, 'darwin')
-    .toLowerCase()
-
-  return cache.platform
+  return primordials.platform
 }
 
 export function type () {
@@ -168,7 +111,7 @@ export function type () {
     return cache.type
   }
 
-  if (typeof window !== 'object') {
+  if (globalThis !== window) {
     switch (platform()) {
       case 'android': return 'Linux'
       case 'cygwin': return 'CYGWIN_NT'
@@ -181,12 +124,8 @@ export function type () {
     }
   }
 
-  if (typeof window === 'object') {
-    value = (
-      platform?.platform ||
-      ipc.sendSync('os.type')?.data ||
-      UNKNOWN
-    )
+  if (globalThis === window) {
+    value = primordials.platform
   }
 
   value = value.replace(/android/i, 'Linux')
@@ -201,6 +140,7 @@ export function type () {
   return cache.type
 }
 
+// TODO: non-standard function. Do we need it?
 export function isWindows () {
   if ('isWindows' in cache) {
     return cache.isWindows
@@ -215,11 +155,11 @@ export function tmpdir () {
 
   if (isWindows()) {
     path = (
-      process?.env?.TEMPDIR ||
-      process?.env?.TMPDIR ||
-      process?.env?.TEMP ||
-      process?.env?.TMP ||
-      (process?.env?.SystemRoot || process?.env?.windir || '') + '\\temp'
+      window.__args.env.TEMPDIR ??
+      window.__args.env.TMPDIR ??
+      window.__args.env.TEMP ??
+      window.__args.env.TMP ??
+      (window.__args.env.SystemRoot ?? window.__args.env.windir ?? '') + '\\temp'
     )
 
     if (path.length > 1 && path.endsWith('\\') && !path.endsWith(':\\')) {
@@ -227,10 +167,10 @@ export function tmpdir () {
     }
   } else {
     path = (
-      process?.env?.TEMPDIR ||
-      process?.env?.TMPDIR ||
-      process?.env?.TEMP ||
-      process?.env?.TMP ||
+      window.__args.env.TEMPDIR ??
+      window.__args.env.TMPDIR ??
+      window.__args.env.TEMP ??
+      window.__args.env.TMP ??
       ''
     )
 
@@ -238,7 +178,7 @@ export function tmpdir () {
     if (!path) {
       if (platform() === 'ios') {
         // @TODO(jwerle): use a path module
-        path = [process.cwd(), 'tmp'].join('/')
+        path = [primordials.cwd, 'tmp'].join('/')
       } else if (platform() === 'android') {
         path = '/data/local/tmp'
       } else {

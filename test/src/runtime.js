@@ -1,7 +1,7 @@
 import { readFile } from 'socket:fs/promises'
 import { test } from 'socket:test'
 import runtime from 'socket:runtime'
-import ipc from 'socket:ipc'
+import ipc, { primordials } from 'socket:ipc'
 import process from 'socket:process'
 
 // TODO(@jwerle): FIXME
@@ -20,66 +20,11 @@ if (process.platform !== 'win32') {
     test('window.document.title', async (t) => {
       window.document.title = 'idkfa'
       t.equal(window.document.title, 'idkfa', 'window.document.title is has been changed')
-      t.notEqual(window.__args.title, window.document.title, 'window.__args.title is not changed')
       const { data: { title } } = await ipc.send('window.getTitle')
       t.equal(title, 'idkfa', 'window title is correct')
     })
 
-    // Other runtime tests
-
-    test('currentWindow', (t) => {
-      t.equal(runtime.currentWindow, window.__args.index, 'runtime.currentWindow equals window.__args.index')
-      t.equal(runtime.currentWindow, 0, 'runtime.currentWindow equals 0')
-      t.throws(() => { runtime.currentWindow = 1 }, 'runtime.currentWindow is immutable')
-    })
-
-    test('debug', (t) => {
-      t.equal(runtime.debug, window.__args.debug, 'debug is correct')
-      t.throws(() => { runtime.debug = 1 }, 'debug is immutable')
-    })
-
-    test('config', async (t) => {
-      const rawConfig = await readFile('socket.ini', 'utf8')
-      let prefix = ''
-      const lines = rawConfig.split('\n')
-      const config = []
-      for (let line of lines) {
-        line = line.trim()
-        if (line.length === 0 || line.startsWith(';')) continue
-        if (line.startsWith('[') && line.endsWith(']')) {
-          prefix = line.slice(1, -1)
-          continue
-        }
-        let [key, value] = line.split('=')
-        key = key.trim()
-        value = value.trim().replace(/"/g, '')
-        config.push([prefix.length === 0 ? key : prefix + '_' + key, value])
-      }
-      config.filter(([key]) => key !== 'build_headless' && key !== 'build_name').forEach(([key, value]) => {
-        t.equal(runtime.config[key], value, `runtime.config.${key} is correct`)
-        t.throws(
-          () => { runtime.config[key] = 0 },
-          // eslint-disable-next-line prefer-regex-literals
-          RegExp('Attempted to assign to readonly property.'),
-          `runtime.config.${key} is read-only`
-        )
-      })
-      t.equal(runtime.config.build_headless, true, 'runtime.config.build_headless is correct')
-      t.throws(
-        () => { runtime.config.build_headless = 0 },
-        // eslint-disable-next-line prefer-regex-literals
-        RegExp('Attempted to assign to readonly property.'),
-        'runtime.config.build_headless is read-only'
-      )
-      t.ok(runtime.config.build_name.startsWith(config.find(([key]) => key === 'build_name')[1]), 'runtime.config.build_name is correct')
-      t.throws(
-        () => { runtime.config.build_name = 0 },
-        // eslint-disable-next-line prefer-regex-literals
-        RegExp('Attempted to assign to readonly property.'),
-        'runtime.config.build_name is read-only'
-      )
-    })
-
+    // Other desktop runtime tests
     test('setTitle', async (t) => {
       t.equal(typeof runtime.setTitle, 'function', 'setTitle is a function')
       const result = await runtime.setTitle('test')
@@ -134,6 +79,14 @@ if (process.platform !== 'win32') {
       ])
       t.deepEqual(result, value, 'send succeeds')
       t.deepEqual(pong, value, 'send back from window 1 succeeds')
+    })
+
+    test('getScreenSize', async (t) => {
+      const { data: { width, height } } = await runtime.getScreenSize()
+      t.ok(Number.isInteger(width), 'width is an integer')
+      t.ok(Number.isInteger(height), 'height is an integer')
+      t.equal(width, window.screen.width, 'width is correct')
+      t.equal(height, window.screen.height, 'height is correct')
     })
 
     test('getWindows', async (t) => {
@@ -246,7 +199,61 @@ if (process.platform !== 'win32') {
     })
   }
 
-  // Common runtime functions
+  // Desktop + mobile runtime functions
+  test('debug', (t) => {
+    t.equal(runtime.debug, window.__args.debug, 'debug is correct')
+    t.throws(() => { runtime.debug = 1 }, 'debug is immutable')
+  })
+
+  test('version', (t) => {
+    t.equal(runtime.version.short, primordials.version.short, 'short version is correct')
+    t.equal(runtime.version.hash, primordials.version.hash, 'version hash is correct')
+    t.equal(runtime.version.full, primordials.version.full, 'full version is correct')
+  })
+
+  test('config', async (t) => {
+    const rawConfig = await readFile('socket.ini', 'utf8')
+    let prefix = ''
+    const lines = rawConfig.split('\n')
+    const config = []
+    for (let line of lines) {
+      line = line.trim()
+      if (line.length === 0 || line.startsWith(';')) continue
+      if (line.startsWith('[') && line.endsWith(']')) {
+        prefix = line.slice(1, -1)
+        continue
+      }
+      let [key, value] = line.split('=')
+      key = key.trim()
+      value = value.trim().replace(/"/g, '')
+      config.push([prefix.length === 0 ? key : prefix + '_' + key, value])
+    }
+    config.forEach(([key, value]) => {
+      switch (key) {
+        case 'build_headless':
+          t.equal(runtime.config[key].toString(), value, `runtime.config.${key} is correct`)
+          break
+        case 'build_name':
+          t.ok(runtime.config[key].startsWith(value), `runtime.config.${key} is correct`)
+          break
+        default:
+          t.equal(runtime.config[key], value, `runtime.config.${key} is correct`)
+      }
+      t.throws(
+        () => { runtime.config[key] = 0 },
+        // eslint-disable-next-line prefer-regex-literals
+        RegExp('Attempted to assign to readonly property.'),
+        `runtime.config.${key} is read-only`
+      )
+    })
+  })
+
+  test('currentWindow', (t) => {
+    t.equal(runtime.currentWindow, window.__args.index, 'runtime.currentWindow equals window.__args.index')
+    t.equal(runtime.currentWindow, 0, 'runtime.currentWindow equals 0')
+    t.throws(() => { runtime.currentWindow = 1 }, 'runtime.currentWindow is immutable')
+  })
+
   test('openExternal', async (t) => {
     t.equal(typeof runtime.openExternal, 'function', 'openExternal is a function')
     // can't test results without browser
