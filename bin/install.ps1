@@ -1,4 +1,4 @@
-param([Switch]$debug, [Switch]$skipwebview, $webview = "1.0.1619-prerelease", $uv = "v1.44.2", $toolchain = "llvm+vsbuild")
+param([Switch]$debug, [Switch]$skipwebview, [Switch]$ps1build, $webview = "1.0.1619-prerelease", $uv = "v1.44.2", $toolchain = "vsbuild")
 
 $OLD_CWD = (Get-Location).Path
 
@@ -40,10 +40,7 @@ Write-Output "Using toolchain: $toolchain"
 Function Found-Command {
     param($command_string)
     (Get-Command $command_string -ErrorAction SilentlyContinue -ErrorVariable F) > $null
-    # Write-Output ">$command_string< : $($F.length), $F"
-    # $r = $($error.length -eq 0)
     $r = $($null -eq $F.length)
-    # Write-Output "Return $($F.length), $r"
     Write-Output $r
 }
 
@@ -285,9 +282,9 @@ Function Install-Requirements {
     }
   }  
 
+  $clang = "clang++"
   if (("llvm+vsbuild" -eq $toolchain) -or ("llvm" -eq $toolchain))
   {
-    $clang = "clang++"
     $clangPath = "$env:ProgramFiles\LLVM\bin"
 
     if (-not (Found-Command($clang))) {
@@ -426,16 +423,57 @@ if (-not (Test-Path -Path $ASSET_PATH)) {
   (New-Item -ItemType Directory -Path $ASSET_PATH) > $null
   Write-Output "ok - created $ASSET_PATH"
 }
+if ($ps1build) {
+  # original build process
+  # refresh enviroment after prereq setup
+  refreshenv
+  if (-not (Test-Path -Path $ASSET_PATH)) {
+    (New-Item -ItemType Directory -Path $ASSET_PATH) > $null
+    Write-Output "ok - created $ASSET_PATH"
+  }
 
-Write-Output "# working path set to $WORKING_PATH"
-cd $WORKING_PATH
+  Write-Output "# working path set to $WORKING_PATH"
+  cd $WORKING_PATH
 
-if ($skipwebview -eq $false) {
-  Install-WebView2
+  if ($skipwebview -eq $false) {
+    Install-WebView2
+  }
+  Build
+  Install-Files
+} else {
+  # $sh="sh.exe"
+  # if (-not (Found-Command($sh))) {
+  #   # locate git's sh
+  #   $gitPath = "$env:ProgramFiles\Git\bin"
+  #   $sh = "$gitPath\sh.exe"
+  # }
+
+  $gitPath = "$env:ProgramFiles\Git\bin"
+  $sh = "$gitPath\sh.exe"
+
+  if ($env:VERBOSE -eq "1") {
+    Write-Output "Using shell $sh"
+    iex "& ""$sh"" -c 'uname -s'"
+  }
+
+  # Look for sh in path
+  if (-not (Found-Command($sh))) {
+    $sh = "$gitPath\sh.exe"
+    Write-Output "sh.exe not in PATH or default Git\bin"
+    Exit 1
+  }
+
+  $find_check = iex "& ""$sh"" -c 'find --version'" | Out-String
+
+  if (-not ($find_check -like "*find (GNU findutils)*")) {
+    Write-Output "find is not GNU findutils: '$find_check'"
+    Exit 1
+  }
+
+  cd $OLD_CWD
+  Write-Output "Calling bin\install.sh"
+  iex "& ""$sh"" bin\install.sh"
 }
-
-Build
-Install-Files
 
 if ($global:path_advice.Count -gt 0) {
   Write-Output "Please add the following to PATH or run for this and future dev sessions: "

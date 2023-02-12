@@ -9,14 +9,19 @@ declare dry_run=0
 declare only_platforms=0
 declare only_top_level=0
 
-declare SOCKET_HOME="$root/build/npm/$platform"
-declare PREFIX="$SOCKET_HOME"
 
 if [[ "$platform" = "linux" ]]; then
   if [ -n "$WSL_DISTRO_NAME" ] || uname -r | grep 'Microsoft'; then
-    platform="win32"
+    platform="Win32"
   fi
+elif [[ "$(uname -s)" == *"MINGW64_NT"* ]]; then
+  platform="Win32"
+elif [[ "$(uname -s)" == *"MSYS_NT"* ]]; then
+  platform="Win32"
 fi
+
+declare SOCKET_HOME="$root/build/npm/$platform"
+declare PREFIX="$SOCKET_HOME"
 
 while (( $# > 0 )); do
   declare arg="$1"; shift
@@ -99,7 +104,8 @@ if (( !only_top_level )); then
     if (( !dry_run )) ; then
       npm publish "${args[@]}" || exit $?
     else
-      echo "# npm publish "$@""
+      # echo "# npm publish ${args[@]}"
+      npm pack "${args[@]}" || exit $?
     fi
   done
 fi
@@ -111,6 +117,7 @@ if (( !only_platforms || only_top_level )); then
   if (( !dry_run )); then
     npm publish "${args[@]}" || exit $?
   else
-    echo "# npm publish "$@""
+    # echo "# npm publish ${args[@]}"
+    npm pack "${args[@]}" || exit $?
   fi
 fi

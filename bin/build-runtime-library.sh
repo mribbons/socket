@@ -8,22 +8,37 @@ declare args=()
 declare pids=()
 declare force=0
 
-declare objects=()
-declare sources=(
-  $(find "$root"/src/app/*.cc)
-  $(find "$root"/src/core/*.cc)
-  $(find "$root"/src/ipc/*.cc)
-)
-
 declare arch="$(uname -m)"
 declare host="$(uname -s)"
 declare platform="desktop"
 
 if [[ "$host" = "Linux" ]]; then
   if [ -n "$WSL_DISTRO_NAME" ] || uname -r | grep 'Microsoft'; then
-    HOST="Win32"
+    host="Win32"
+  fi
+elif [[ "$host" == *"MINGW64_NT"* ]]; then
+  host="Win32"
+elif [[ "$host" == *"MSYS_NT"* ]]; then
+  # Have not confirmed this works as a build host, no gnu find in author's dev
+  host="Win32"
+fi
+
+if [[ "$host" == "Win32" ]]; then
+  declare find_test="$(sh -c 'find --version')"
+  if [[ $find_test != *"GNU findutils"* ]]; then
+    echo "GNU find not detected. Consider adding %ProgramFiles%\Git\bin\ to PATH."
+    echo "NOTE: %ProgramFiles%\Git\usr\bin\ WILL NOT work."
+    echo "uname -m: $(uname -s)"
+    exit 1
   fi
 fi
+
+declare objects=()
+declare sources=(
+  $(find "$root"/src/app/*.cc)
+  $(find "$root"/src/core/*.cc)
+  $(find "$root"/src/ipc/*.cc)
+)
 
 if (( TARGET_OS_IPHONE )); then
   arch="arm64"
@@ -138,7 +153,7 @@ function main () {
         mkdir -p "$(dirname "$object")"
         echo "# compiling object ($arch-$platform) $(basename "$source")"
         # echo $clang "${cflags[@]}" "${ldflags[@]}" -c "$source" -o "$object"
-        $clang "${cflags[@]}" -c "$source" -o "$object" || onsignal
+        "$clang" "${cflags[@]}" -c "$source" -o "$object" || onsignal
         echo "ok - built ${source/$src_directory\//} -> ${object/$output_directory\//} ($arch-$platform)"
       fi
     } & pids+=($!)
@@ -151,9 +166,20 @@ function main () {
   declare static_library="$root/build/$arch-$platform/lib/libsocket-runtime.a"
   mkdir -p "$(dirname "$static_library")"
   rm -rf "$static_library"
-  # echo ar crs "$static_library" "${objects[@]}"
-  ar crs "$static_library" "${objects[@]}"
-  echo "ok - built static library ($arch-$platform): $(basename "$static_library")"
+  declare ar="ar"
+
+  if [[ "$host" = "Win32" ]]; then
+    ar="llvm-ar"
+  fi
+
+  # echo $ar crs "$static_library" "${objects[@]}"
+  $ar crs "$static_library" "${objects[@]}"
+
+  if [ -f $static_library ]; then
+    echo "ok - built static library ($arch-$platform): $(basename "$static_library")"
+  else
+    echo "failed to build $static_library"
+  fi
 }
 
 main "${args[@]}"

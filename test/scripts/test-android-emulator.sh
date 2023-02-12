@@ -1,21 +1,18 @@
 #!/usr/bin/env bash
 
-id=""
-root=""
-
 id="co.socketsupply.socket.tests"
-root="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+root="$(CDPATH='' cd -- "$(dirname "$(dirname -- "$0")")" && pwd)"
 
 ${SHELL:-sh} "$root/scripts/bootstrap-android-emulator.sh" &
 
 echo "info: Waiting for Android Emulator to boot"
 while ! adb shell getprop sys.boot_completed >/dev/null 2>&1 ; do
-  sleep 0.5s
+  sleep 0.5
 done
 echo "info: Android Emulator booted"
 
 adb uninstall "$id"
-ssc build --headless --platform=android -r -o . >/dev/null || {
+ssc build --headless --platform=android -r -o || {
   rc=$?
   echo "info: Shutting Android Emulator"
   adb devices | grep emulator | cut -f1 | while read -r line; do

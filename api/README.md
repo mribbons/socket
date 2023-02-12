@@ -11,7 +11,7 @@
 | Argument | Type | Default | Optional | Description |
 | :---     | :--- | :---:   | :---:    | :---        |
 | opts | object |  | false | an options object |
-| opts.force | boolean | false | false | whether to force existing process to close |
+| opts.force | boolean | false | false | whether to force the existing process to close |
 
 
 | Return Value | Type | Description |
@@ -40,7 +40,7 @@
 # [Bluetooth](https://github.com/socketsupply/socket/blob/master/api/bluetooth.js#L7)
 
 
- A high level, cross-platform API for Bluetooth Pub-Sub
+ A high-level, cross-platform API for Bluetooth Pub-Sub
 
 ## [`Bluetooth` (extends `EventEmitter`)](https://github.com/socketsupply/socket/blob/master/api/bluetooth.js#L15)
 
@@ -58,7 +58,7 @@ constructor is an example property that is set to `true`
 
 ### [`start()`](https://github.com/socketsupply/socket/blob/master/api/bluetooth.js#L60)
 
-Start the bluetooth service.
+Start the Bluetooth service.
 
 | Return Value | Type | Description |
 | :---         | :--- | :---        |
@@ -108,7 +108,7 @@ Start advertising a new value for a well-known UUID
 # [Crypto](https://github.com/socketsupply/socket/blob/master/api/crypto.js#L8)
 
 
- Some high level methods around the `crypto.subtle` api for getting
+ Some high-level methods around the `crypto.subtle`API for getting
  random bytes and hashing.
 
 ## [webcrypto](https://github.com/socketsupply/socket/blob/master/api/crypto.js#L25)
@@ -119,7 +119,7 @@ WebCrypto API
 
 External docs: https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
 
-Generate cryptographically strong random values into `buffer`
+Generate cryptographically strong random values into the `buffer`
 
 | Argument | Type | Default | Optional | Description |
 | :---     | :--- | :---:   | :---:    | :---        |
@@ -207,7 +207,7 @@ Thrown when a bad socket type is used in an argument.
 
 Thrown when a bad port is given.
 
-## [`createSocket(options, callback)`](https://github.com/socketsupply/socket/blob/master/api/dgram.js#L632)
+## [`createSocket(options, callback)`](https://github.com/socketsupply/socket/blob/master/api/dgram.js#L627)
 
 Creates a `Socket` instance.
 
@@ -216,7 +216,7 @@ Creates a `Socket` instance.
 | options | string \| Object |  | false | either a string ('udp4' or 'udp6') or an options object |
 | options.type | string |  | true | The family of socket. Must be either 'udp4' or 'udp6'. Required. |
 | options.reuseAddr | boolean | false | true | When true socket.bind() will reuse the address, even if another process has already bound a socket on it. Default: false. |
-| options.ipv6Only | boolean | false | true | Setting ipv6Only to true will disable dual-stack support, i.e., binding to address :: won't make 0.0.0.0 be bound. Default: false. |
+| options.ipv6Only | boolean | false | true | Default: false. |
 | options.recvBufferSize | number |  | true | Sets the SO_RCVBUF socket value. |
 | options.sendBufferSize | number |  | true | Sets the SO_SNDBUF socket value. |
 | options.signal | AbortSignal |  | true | An AbortSignal that may be used to close a socket. |
@@ -228,26 +228,31 @@ Creates a `Socket` instance.
 | Not specified | Socket |  |
 
 
-## [`Socket` (extends `EventEmitter`)](https://github.com/socketsupply/socket/blob/master/api/dgram.js#L638)
+## [`Socket` (extends `EventEmitter`)](https://github.com/socketsupply/socket/blob/master/api/dgram.js#L633)
 
 New instances of dgram.Socket are created using dgram.createSocket().
  The new keyword is not to be used to create dgram.Socket instances.
 
-### [`bind(port, address, callback)`](https://github.com/socketsupply/socket/blob/master/api/dgram.js#L709)
+### [`bind(port, address, port, address, callback)`](https://github.com/socketsupply/socket/blob/master/api/dgram.js#L709)
 
 External docs: https://nodejs.org/api/dgram.html#socketbindport-address-callback
 
 Listen for datagram messages on a named port and optional address
- If address is not specified, the operating system will attempt to
- listen on all addresses. Once binding is complete, a 'listening'
+ If the address is not specified, the operating system will attempt to
+ listen on all addresses. Once the binding is complete, a 'listening'
  event is emitted and the optional callback function is called.
 
  If binding fails, an 'error' event is emitted.
 
+<<<<<<< HEAD
+=======
+>>>>>>> b9adc890 (fixed all the typos)
 
 | Argument | Type | Default | Optional | Description |
 | :---     | :--- | :---:   | :---:    | :---        |
 | port | number |  | false | The port to to listen for messages on |
+| address | string |  | false | The address to bind to (127.0.0.1) |
+| port | number |  | false | The port to listen for messages on |
 | address | string |  | false | The address to bind to (0.0.0.0) |
 | callback | function |  | false | With no parameters. Called when binding is complete. |
 
@@ -260,7 +265,7 @@ Associates the dgram.Socket to a remote address and port. Every message sent
  by this handle is automatically sent to that destination. Also, the socket
  will only receive messages from that remote peer. Trying to call connect()
  on an already connected socket will result in an ERR_SOCKET_DGRAM_IS_CONNECTED
- exception. If address is not provided, '127.0.0.1' (for udp4 sockets) or '::1'
+ exception. If the address is not provided, '127.0.0.1' (for udp4 sockets) or '::1'
  (for udp6 sockets) will be used by default. Once the connection is complete,
  a 'connect' event is emitted and the optional callback function is called.
  In case of failure, the callback is called or, failing this, an 'error' event
@@ -293,25 +298,25 @@ Broadcasts a datagram on the socket. For connectionless sockets, the
  address arguments must not be set.
 
  > The msg argument contains the message to be sent. Depending on its type,
- different behavior can apply. If msg is a Buffer, any TypedArray or a
+ different behavior can apply. If msg is a Buffer, any TypedArray, or a
  DataView, the offset and length specify the offset within the Buffer where
  the message begins and the number of bytes in the message, respectively.
  If msg is a String, then it is automatically converted to a Buffer with
- 'utf8' encoding. With messages that contain multi-byte characters, offset
+ 'utf8' encoding. With messages that contain multi-byte characters, offset,
  and length will be calculated with respect to byte length and not the
  character position. If msg is an array, offset and length must not be
  specified.
 
- > The address argument is a string. If the value of address is a host name,
- DNS will be used to resolve the address of the host. If address is not
+ > The address argument is a string. If the value of the address is a hostname,
+ DNS will be used to resolve the address of the host. If the address is not
  provided or otherwise nullish, '127.0.0.1' (for udp4 sockets) or '::1'
  (for udp6 sockets) will be used by default.
 
  > If the socket has not been previously bound with a call to bind, the socket
  is assigned a random port number and is bound to the "all interfaces"
- address ('0.0.0.0' for udp4 sockets, '::0' for udp6 sockets.)
+ address ('127.0.0.1' for udp4 sockets, '::1' for udp6 sockets.)
 
- > An optional callback function may be specified to as a way of reporting DNS
+ > An optional callback function may be specified as a way of reporting DNS
  errors or for determining when it is safe to reuse the buf object. DNS
  lookups delay the time to send for at least one tick of the Node.js event
  loop.
@@ -321,7 +326,7 @@ Broadcasts a datagram on the socket. For connectionless sockets, the
  passed as the first argument to the callback. If a callback is not given,
  the error is emitted as an 'error' event on the socket object.
 
- > Offset and length are optional but both must be set if either are used.
+ > Offset and length are optional but both must be set if either is used.
  They are supported only when the first argument is a Buffer, a TypedArray,
  or a DataView.
 
@@ -883,12 +888,12 @@ External docs: https://nodejs.org/dist/latest-v16.x/docs/api/fs.html#fspromisesw
 # [IPC](https://github.com/socketsupply/socket/blob/master/api/ipc.js#L28)
 
 
- This is a low level API which you don't need unless you are implementing
+ This is a low-level API that you don't need unless you are implementing
  a library on top of Socket SDK. A Socket SDK app has two or three processes.
 
- - The `Render` process, the UI where the HTML, CSS and JS is run.
- - The `Bridge` process, the thin layer of code that managers everything.
- - The `Main` processs, for apps that need to run heavier compute jobs. And
+ - The `Render` process, is the UI where the HTML, CSS, and JS are run.
+ - The `Bridge` process, is the thin layer of code that manages everything.
+ - The `Main` process, is for apps that need to run heavier compute jobs. And
    unlike electron it's optional.
 
  The Bridge process manages the Render and Main process, it may also broker
@@ -905,7 +910,7 @@ External docs: https://nodejs.org/dist/latest-v16.x/docs/api/fs.html#fspromisesw
  ipc://command?key1=value1&key2=value2...
  ```
 
-## [`emit(name, value, target , options)`](https://github.com/socketsupply/socket/blob/master/api/ipc.js#L856)
+## [`emit(name, value, target , options)`](https://github.com/socketsupply/socket/blob/master/api/ipc.js#L882)
 
 Emit event to be dispatched on `window` object.
 
@@ -917,7 +922,7 @@ Emit event to be dispatched on `window` object.
 | options | Object |  | true |  |
 
 
-## [`send(command, value)`](https://github.com/socketsupply/socket/blob/master/api/ipc.js#L912)
+## [`send(command, value)`](https://github.com/socketsupply/socket/blob/master/api/ipc.js#L938)
 
 Sends an async IPC command request with parameters.
 
@@ -948,27 +953,27 @@ This is a `FunctionDeclaration` named `arch` in `api/os.js`, it's exported but u
 This is a `FunctionDeclaration` named `networkInterfaces` in `api/os.js`, it's exported but undocumented.
 
 
-## [`platform()`](https://github.com/socketsupply/socket/blob/master/api/os.js#L141)
+## [`platform()`](https://github.com/socketsupply/socket/blob/master/api/os.js#L135)
 
 This is a `FunctionDeclaration` named `platform` in `api/os.js`, it's exported but undocumented.
 
 
-## [`type()`](https://github.com/socketsupply/socket/blob/master/api/os.js#L170)
+## [`type()`](https://github.com/socketsupply/socket/blob/master/api/os.js#L164)
 
 This is a `FunctionDeclaration` named `type` in `api/os.js`, it's exported but undocumented.
 
 
-## [`isWindows()`](https://github.com/socketsupply/socket/blob/master/api/os.js#L210)
+## [`isWindows()`](https://github.com/socketsupply/socket/blob/master/api/os.js#L204)
 
 This is a `FunctionDeclaration` named `isWindows` in `api/os.js`, it's exported but undocumented.
 
 
-## [`tmpdir()`](https://github.com/socketsupply/socket/blob/master/api/os.js#L219)
+## [`tmpdir()`](https://github.com/socketsupply/socket/blob/master/api/os.js#L213)
 
 This is a `FunctionDeclaration` named `tmpdir` in `api/os.js`, it's exported but undocumented.
 
 
-## [EOL](https://github.com/socketsupply/socket/blob/master/api/os.js#L263)
+## [EOL](https://github.com/socketsupply/socket/blob/master/api/os.js#L257)
 
 This is a `VariableDeclaration` named `EOL` in `api/os.js`, it's exported but undocumented.
 
