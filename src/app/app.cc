@@ -206,11 +206,6 @@ namespace SSC {
   App::App (void* h) : App() {
     this->hInstance = (HINSTANCE) h;
 
-    if (isDebugEnabled()) {
-      AllocConsole();
-      freopen_s(&console, "CONOUT$", "w", stdout);
-    }
-
     // this fixes bad default quality DPI.
     SetProcessDPIAware();
 

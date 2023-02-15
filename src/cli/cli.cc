@@ -139,11 +139,11 @@ int runApp (const fs::path& path, const String& args, bool headless) {
 
   auto runner = trim(String(STR_VALUE(CMD_RUNNER)));
   auto prefix = runner.size() > 0 ? runner + String(" ") : runner;
+  String headlessCommand = "";
 
   if (headless) {
     auto headlessRunner = settings["headless_runner"];
     auto headlessRunnerFlags = settings["headless_runner_flags"];
-    String headlessCommand = "";
 
     if (headlessRunner.size() == 0) {
       headlessRunner = settings["headless_" + platform.os + "_runner"];
@@ -172,20 +172,39 @@ int runApp (const fs::path& path, const String& args, bool headless) {
     }
 
     if (headlessRunner != "false") {
-      headlessCommand = headlessRunner + " " + headlessRunnerFlags + " ";
+      headlessCommand = headlessRunner + (headlessRunner.size() > 0 ? " " : "") + 
+       headlessRunnerFlags + (headlessRunnerFlags.size() > 0 ? " " : "");
     }
-
-    status = std::system((headlessCommand + prefix + cmd + " " + args + " --from-ssc").c_str());
+    
   // TODO: this branch exits the CLI process
   // } else if (platform.mac) {
   //   auto s = prefix + cmd;
   //   auto part = s.substr(0, s.find(".app/") + 4);
   //   status = std::system(("open -n " + part + " --args " + args + " --from-ssc").c_str());
-  } else {
-    status = std::system((prefix + cmd + " " + args + " --from-ssc").c_str());
   }
+  
+  std::cout << "Running app: " << prefix << cmd << std::endl;
+  auto process = new SSC::Process(
+    headlessCommand + prefix + cmd,
+    args + " --from-ssc",
+    fs::current_path().string(),
+    [](SSC::String const &out) { stdWrite(out, false); },
+    [](SSC::String const &out) { stdWrite(out, true); },
+    [](SSC::String const &code) {
+      if (std::stoul(code) != 0) {
+        log("runApp failed, exiting with code " + code);
+        // TODO(trevnorris): Force non-windows to exit the process.
+        exit(std::stoul(code));
+      } else {
+        log("runApp finished with code: " + code);
+      }
+    }
+  );
 
-  return WEXITSTATUS(status);
+  process->open();
+  process->wait();
+
+  return WEXITSTATUS(process->status);
 }
 
 int runApp (const fs::path& path, const String& args) {
