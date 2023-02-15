@@ -1763,15 +1763,23 @@ int main (const int argc, const char* argv[]) {
         buildArgs << " --test=true";
       }
 
-      // Removed new SSC::Process() style code, caused random crashes
-      auto build_script_exec = exec(settings["build_script"] + buildArgs.str());
-      if (build_script_exec.exitCode != 0) {
-        std::cout << "Build " << settings["build_script"] << " " << buildArgs.str() << std::endl;
-        log(build_script_exec.output);
-        log("User build failed (" + std::to_string(build_script_exec.exitCode) + ")");
-        // TODO(trevnorris): Force non-windows to exit the process.
-        exit(build_script_exec.exitCode);
-      }
+      auto process = new SSC::Process(
+        settings["build_script"],
+        buildArgs.str(),
+        fs::current_path().string(),
+        [](SSC::String const &out) { stdWrite(out, false); },
+        [](SSC::String const &out) { stdWrite(out, true); },
+        [](SSC::String const &code) {
+          if (std::stoi(code) != 0) {
+            log("build failed, exiting with code " + code);
+            // TODO(trevnorris): Force non-windows to exit the process.
+            exit(std::stoi(code));
+          }
+        }
+      );
+
+      process->open();
+      process->wait();
 
       log("ran user build command");
 
