@@ -1,5 +1,6 @@
 {
   "type": "module",
+  "directories": ["api"],
   "scripts": {
     "pretest": "npx standard .",
     "readme": "node ./bin/generate-docs.js",
