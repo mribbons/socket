@@ -7,6 +7,27 @@
 
 namespace SSC {
 
+SSC::String FormatError(DWORD error, SSC::String source) {
+  SSC::StringStream message;
+  LPVOID lpMsgBuf;
+  LPVOID lpDisplayBuf;
+  FormatMessage(
+  FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+  FORMAT_MESSAGE_FROM_SYSTEM |
+  FORMAT_MESSAGE_IGNORE_INSERTS,
+  NULL,
+  error,
+  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+  (LPTSTR) &lpMsgBuf,
+  0, NULL );
+
+  message << "Error " << error << " in " << source << ": " <<  (LPTSTR)lpMsgBuf;
+  LocalFree(lpMsgBuf);
+  LocalFree(lpDisplayBuf);
+
+  return message.str();
+}
+
 const static SSC::StringStream initial;
 
 Process::Data::Data() noexcept : id(0) {}
@@ -179,14 +200,27 @@ Process::id_type Process::open(const SSC::String &command, const SSC::String &pa
     *stderr_fd = stderr_rd_p.detach();
   }
 
-  auto t = std::thread([this, &process_info]() {
-    WaitForSingleObject(process_info.hProcess, INFINITE);
-    DWORD exitCode;
-    GetExitCodeProcess(process_info.hProcess, &exitCode);
-    this->status = (int) exitCode;
-    this->closed = true;
-    on_exit(std::to_string(exitCode));
-  });
+  auto processHandle = process_info.hProcess;
+  auto t = std::thread([&](HANDLE _processHandle) {
+    DWORD exitCode = 0;
+
+    try {
+      WaitForSingleObject(_processHandle, INFINITE);
+
+      if (GetExitCodeProcess(_processHandle, &exitCode) == 0) {
+        std::cerr << FormatError(GetLastError(), "SSC::Process::open() GetExitCodeProcess()") << std::endl;
+        exitCode = -1;
+      }
+
+      this->status = WEXITSTATUS(exitCode);
+      this->closed = true;
+      if (this->on_exit != nullptr)
+        this->on_exit(std::to_string(this->status));
+    } catch (std::exception e) {
+      std::cerr << "SSC::Process thread exception: " << e.what() << std::endl;
+      this->closed = true;
+    }
+  }, (processHandle));
 
   t.detach();
 
