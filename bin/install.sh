@@ -174,6 +174,9 @@ if [ "$host" == "Linux" ]; then
 fi
 
 if [[ -n "$BUILD_ANDROID" ]]; then
+
+  android_env_flow
+
   abis=($(android_supported_abis))
   platform="android"
   arch="${abis[0]}"
