@@ -175,7 +175,7 @@ fi
 
 if [[ -n "$BUILD_ANDROID" ]]; then
 
-  android_env_flow
+  android_fte
 
   abis=($(android_supported_abis))
   platform="android"
